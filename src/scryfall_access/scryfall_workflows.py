@@ -1,0 +1,208 @@
+# file: src/scryfall_access/scryfall_workflows.py
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
+from .scryfall_client import ScryfallClient, ScryfallAPIError
+
+
+def _extract_primary_image_uris(card: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Get a dict of image URIs for a card, handling both normal and multi-faced cards.
+
+    - For most cards, image_uris is on the root card object.
+    - For double-faced / split layouts, image_uris lives on card_faces[0].
+    """
+    # Simple case: single-faced card
+    if "image_uris" in card and card["image_uris"]:
+        return card["image_uris"]
+
+    # Multi-faced cards: the images are usually on each card_face
+    faces = card.get("card_faces") or []
+    if faces and isinstance(faces[0], dict):
+        return faces[0].get("image_uris") or {}
+
+    return {}
+
+
+def _has_any_price(card: Dict[str, Any]) -> bool:
+    """
+    Return True if the card has any non-null price field.
+
+    prices is a dict like:
+      {"usd": "3.68", "usd_foil": "29.99", "eur": "5.65", ...}
+    Values can be strings or null.
+    """
+    prices = card.get("prices") or {}
+    for v in prices.values():
+        if v not in (None, "", 0):
+            return True
+    return False
+
+
+def _is_paper(card: Dict[str, Any]) -> bool:
+    """True if the card is available in paper (game:paper)."""
+    games = card.get("games") or []
+    return "paper" in games
+
+
+def _score_candidate(card: Dict[str, Any]) -> int:
+    """
+    Score a candidate print for selection.
+
+    Higher is better. Heuristics:
+      - Prefer prints that:
+        - have any prices
+        - are available in paper
+        - are not digital-only
+        - are not promos
+    """
+    score = 0
+
+    if _has_any_price(card):
+        score += 8
+    if _is_paper(card):
+        score += 4
+    if not card.get("digital", False):
+        score += 2
+    if not card.get("promo", False):
+        score += 1
+
+    return score
+
+
+def _choose_best_candidate(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Choose the "best" candidate from a list of card objects using _score_candidate.
+
+    Ties are broken by keeping the first candidate with that score.
+    """
+    if not candidates:
+        raise ValueError("No candidates to choose from.")
+
+    best = candidates[0]
+    best_score = _score_candidate(best)
+
+    for card in candidates[1:]:
+        score = _score_candidate(card)
+        if score > best_score:
+            best = card
+            best_score = score
+
+    return best
+
+
+def _summarize_card(card: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Build a rich but convenient summary of a full Scryfall card object.
+
+    The full raw card is also returned under 'raw_card'.
+    """
+    image_uris = _extract_primary_image_uris(card)
+    prices = card.get("prices") or {}
+
+    return {
+        # Identifiers
+        "id": card.get("id"),
+        "oracle_id": card.get("oracle_id"),
+        "name": card.get("name"),
+        "lang": card.get("lang"),
+        "released_at": card.get("released_at"),
+        "set": card.get("set"),
+        "set_name": card.get("set_name"),
+        "set_type": card.get("set_type"),
+        "collector_number": card.get("collector_number"),
+        "rarity": card.get("rarity"),
+        "layout": card.get("layout"),
+
+        # Rules & stats
+        "mana_cost": card.get("mana_cost"),
+        "cmc": card.get("cmc"),
+        "type_line": card.get("type_line"),
+        "oracle_text": card.get("oracle_text"),
+        "power": card.get("power"),
+        "toughness": card.get("toughness"),
+        "loyalty": card.get("loyalty"),
+        "defense": card.get("defense"),
+        "colors": card.get("colors"),
+        "color_identity": card.get("color_identity"),
+        "keywords": card.get("keywords"),
+        "produced_mana": card.get("produced_mana"),
+
+        # Flags & meta
+        "games": card.get("games"),
+        "reserved": card.get("reserved"),
+        "digital": card.get("digital"),
+        "promo": card.get("promo"),
+        "reprint": card.get("reprint"),
+        "finishes": card.get("finishes"),
+        "full_art": card.get("full_art"),
+        "textless": card.get("textless"),
+        "booster": card.get("booster"),
+        "edhrec_rank": card.get("edhrec_rank"),
+
+        # Legalities
+        "legalities": card.get("legalities"),
+
+        # Imagery
+        "image_uris": image_uris,
+
+        # Pricing & links
+        "prices": prices,
+        "scryfall_uri": card.get("scryfall_uri"),
+        "uri": card.get("uri"),
+        "prints_search_uri": card.get("prints_search_uri"),
+        "rulings_uri": card.get("rulings_uri"),
+        "set_uri": card.get("set_uri"),
+        "set_search_uri": card.get("set_search_uri"),
+        "related_uris": card.get("related_uris") or {},
+        "purchase_uris": card.get("purchase_uris") or {},
+
+        # Full raw card object for anything else
+        "raw_card": card,
+    }
+
+
+def lookup_card_details_by_name(
+    client: ScryfallClient,
+    name: str,
+    *,
+    max_candidates: int = 50,
+    unique: str = "prints",
+    order: str = "released",
+    direction: str = "desc",
+) -> Optional[Dict[str, Any]]:
+    """
+    High-level workflow:
+
+    1) Search for `name` via /cards/search (using Scryfall's fulltext search).
+    2) Collect up to `max_candidates` matching prints.
+    3) Choose the "best" print (paper, priced, non-digital, non-promo).
+    4) Use its Scryfall `id` with /cards/{id} to fetch full details.
+    5) Return a rich summary dict (plus the raw card under 'raw_card').
+
+    Returns None if no search results found.
+    """
+    search_iter = client.search_cards(
+        name,
+        unique=unique,
+        order=order,
+        direction=direction,
+    )
+
+    candidates: List[Dict[str, Any]] = []
+    for i, card in enumerate(search_iter):
+        candidates.append(card)
+        if i + 1 >= max_candidates:
+            break
+
+    if not candidates:
+        return None
+
+    best = _choose_best_candidate(candidates)
+
+    # Optional second fetch by id (keeps workflow explicit / future-proof).
+    full_card = client.card_by_id(best["id"])
+
+    return _summarize_card(full_card)
