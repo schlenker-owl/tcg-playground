@@ -63,6 +63,31 @@
         color: var(--muted);
       }
 
+      nav {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      nav a {
+        font-size: 0.82rem;
+        text-decoration: none;
+        color: var(--muted);
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+
+      nav a:hover {
+        border-color: rgba(92, 196, 255, 0.7);
+        color: var(--accent);
+      }
+
+      nav a.active {
+        border-color: rgba(92, 196, 255, 0.8);
+        background: rgba(92, 196, 255, 0.12);
+        color: var(--accent);
+      }
+
       main {
         padding: 1.75rem;
         display: grid;
@@ -341,14 +366,30 @@
         .other-grid {
           grid-template-columns: minmax(0, 1fr);
         }
+
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        nav {
+          width: 100%;
+          justify-content: flex-start;
+        }
       }
     </style>
   </head>
   <body>
     <div class="shell">
       <header>
-        <h1>Scryfall Card Browser</h1>
-        <span>Card details</span>
+        <div>
+          <h1>Scryfall Card Browser</h1>
+          <span>Card details</span>
+        </div>
+        <nav>
+          <a href="/">Search</a>
+          <a href="/sets">Sets</a>
+        </nav>
       </header>
 
       <main>

@@ -308,7 +308,7 @@ class ScryfallClient:
         Endpoint: GET /cards/autocomplete
 
         Returns up to 20 full English card names that could be autocompletions
-        of the given string. 
+        of the given string.
         """
         params: Dict[str, Any] = {"q": q}
         if include_extras:
@@ -325,7 +325,7 @@ class ScryfallClient:
         Endpoint: GET /cards/random
 
         If q is provided, Scryfall returns a random card that matches the query
-        (using the same search syntax as /cards/search). 
+        (using the same search syntax as /cards/search).
         """
         params: Optional[Dict[str, Any]] = None
         if q:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -14,9 +14,12 @@ from src.scryfall_access.scryfall_workflows import (
     autocomplete_card_names,
     get_printings_for_card,
     get_rulings_for_card,
+    get_set_detail,
+    list_sets_for_ui,
     lookup_card_details_by_id,
     random_card_summary,
     search_cards_summaries,
+    set_cards_summaries,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -101,15 +104,14 @@ async def card_detail_page(
     """
     error: Optional[str] = None
     card = None
-    rulings = []
-    printings = []
+    rulings: list[dict[str, Any]] | list = []
+    printings: list[dict[str, Any]] | list = []
 
     try:
         card = lookup_card_details_by_id(client, card_id)
         if card is None:
             error = f"No card found with id: {card_id!r}"
         else:
-            # Fetch rulings & other printings for this card
             try:
                 rulings = get_rulings_for_card(client, card["id"])
             except ScryfallAPIError:
@@ -149,7 +151,6 @@ async def autocomplete_endpoint(q: str) -> JSONResponse:
     """
     q = q.strip()
     if len(q) < 2:
-        # Scryfall itself also uses a 2-char minimum for autocomplete. 
         return JSONResponse({"data": []})
 
     try:
@@ -177,9 +178,7 @@ async def random_card_route(
     try:
         summary = random_card_summary(client, query=q)
         card_id = summary["id"]
-    except ScryfallAPIError as e:
-        # Fallback: redirect back to search with an error-ish query
-        # (simplest non-JSON way to surface issues for now)
+    except ScryfallAPIError:
         return RedirectResponse(
             url=f"/?q={ (q or '') }",
             status_code=303,
@@ -190,9 +189,88 @@ async def random_card_route(
             status_code=303,
         )
 
-    # Preserve q so that "Back to results" can still work somewhat sensibly
     q_param = q or ""
     return RedirectResponse(
         url=f"/card/{card_id}?q={q_param}&page=1",
         status_code=303,
+    )
+
+
+@app.get("/sets", response_class=HTMLResponse)
+async def sets_page(request: Request) -> HTMLResponse:
+    """
+    Sets index page:
+
+    - GET /sets -> list of all sets, sorted by release date (newest first).
+    """
+    error: Optional[str] = None
+    sets = []
+
+    try:
+        sets = list_sets_for_ui(client)
+    except ScryfallAPIError as e:
+        error = f"Scryfall API error: {e}"
+    except Exception as e:
+        error = f"Unexpected error: {e}"
+
+    return templates.TemplateResponse(
+        "sets.html",
+        {
+            "request": request,
+            "sets": sets,
+            "error": error,
+        },
+    )
+
+
+@app.get("/sets/{set_code}", response_class=HTMLResponse)
+async def set_detail_page(
+    request: Request,
+    set_code: str,
+    page: int = 1,
+) -> HTMLResponse:
+    """
+    Set detail page:
+
+    - GET /sets/{set_code}        -> set metadata + cards in that set (paginated)
+    """
+    error: Optional[str] = None
+    set_info = None
+    cards = []
+    has_next = False
+    has_prev = False
+
+    try:
+        set_info = get_set_detail(client, set_code)
+        if set_info is None:
+            error = f"No set found with code: {set_code!r}"
+        else:
+            res = set_cards_summaries(
+                client,
+                set_code=set_code,
+                page=page,
+                per_page=PER_PAGE,
+            )
+            cards = res["results"]
+            has_next = res["has_next"]
+            has_prev = res["has_prev"]
+
+            if not cards and error is None:
+                error = "No cards found for this set."
+    except ScryfallAPIError as e:
+        error = f"Scryfall API error: {e}"
+    except Exception as e:
+        error = f"Unexpected error: {e}"
+
+    return templates.TemplateResponse(
+        "set_detail.html",
+        {
+            "request": request,
+            "set": set_info,
+            "cards": cards,
+            "error": error,
+            "page": page,
+            "has_next": has_next,
+            "has_prev": has_prev,
+        },
     )

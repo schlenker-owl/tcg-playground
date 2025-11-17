@@ -1,0 +1,327 @@
+<!-- file: src/scryfall_ui/templates/sets.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Scryfall Card Browser – Sets</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #0b1020;
+        --card-bg: #141b2f;
+        --accent: #5cc4ff;
+        --accent-soft: rgba(92, 196, 255, 0.12);
+        --text: #e5ecff;
+        --muted: #9aa4c1;
+        --danger: #ff6b81;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top, #151b30, #050713 55%, #050509);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        padding: 2rem 1rem;
+      }
+
+      .shell {
+        width: 100%;
+        max-width: 980px;
+        background: linear-gradient(145deg, #0b0f1c, #090b15);
+        border-radius: 18px;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.8);
+        border: 1px solid rgba(122, 155, 255, 0.2);
+        overflow: hidden;
+      }
+
+      header {
+        padding: 1.25rem 1.75rem;
+        border-bottom: 1px solid rgba(122, 155, 255, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 1.1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      header span {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      nav {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      nav a {
+        font-size: 0.82rem;
+        text-decoration: none;
+        color: var(--muted);
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+
+      nav a:hover {
+        border-color: rgba(92, 196, 255, 0.7);
+        color: var(--accent);
+      }
+
+      nav a.active {
+        border-color: rgba(92, 196, 255, 0.8);
+        background: rgba(92, 196, 255, 0.12);
+        color: var(--accent);
+      }
+
+      main {
+        padding: 1.75rem;
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      .error {
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        background: rgba(255, 107, 129, 0.12);
+        border: 1px solid rgba(255, 107, 129, 0.4);
+        color: var(--danger);
+        font-size: 0.9rem;
+      }
+
+      .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .filter-input {
+        flex: 1 1 200px;
+        border-radius: 999px;
+        border: 1px solid rgba(92, 196, 255, 0.25);
+        background: rgba(6, 9, 20, 0.9);
+        padding: 0.35rem 0.8rem;
+        color: var(--text);
+        font-size: 0.9rem;
+        outline: none;
+      }
+
+      .filter-input::placeholder {
+        color: var(--muted);
+      }
+
+      .sets-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.9rem;
+      }
+
+      .set-card {
+        display: flex;
+        gap: 0.75rem;
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 0.75rem;
+        border: 1px solid rgba(122, 155, 255, 0.18);
+        text-decoration: none;
+        color: inherit;
+        font-size: 0.86rem;
+        transition: transform 0.08s ease-out, box-shadow 0.08s ease-out,
+          border-color 0.08s ease-out;
+      }
+
+      .set-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+        border-color: rgba(92, 196, 255, 0.6);
+      }
+
+      .set-icon {
+        flex: 0 0 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .set-icon img {
+        display: block;
+        width: 28px;
+        height: 28px;
+      }
+
+      .set-body {
+        flex: 1 1 auto;
+        display: grid;
+        gap: 0.15rem;
+      }
+
+      .set-name {
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+
+      .set-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.7rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+
+      .set-type-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      @media (max-width: 880px) {
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        nav {
+          width: 100%;
+          justify-content: flex-start;
+        }
+
+        .sets-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div>
+          <h1>Scryfall Card Browser</h1>
+          <span>Explore sets</span>
+        </div>
+        <nav>
+          <a href="/">Search</a>
+          <a href="/sets" class="active">Sets</a>
+        </nav>
+      </header>
+
+      <main>
+        {% if error %}
+          <section>
+            <div class="error">
+              {{ error }}
+            </div>
+          </section>
+        {% endif %}
+
+        <section>
+          <div class="filter-row">
+            <input
+              id="sets-filter"
+              class="filter-input"
+              type="text"
+              placeholder="Filter sets by name, code, or type…"
+            />
+            <div style="font-size: 0.8rem; color: var(--muted);">
+              {{ sets|length }} sets
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div id="sets-grid" class="sets-grid">
+            {% for s in sets %}
+              <a
+                class="set-card"
+                href="/sets/{{ s.code }}"
+                data-name="{{ s.name|lower }}"
+                data-code="{{ s.code|lower }}"
+                data-type="{{ s.set_type|lower }}"
+              >
+                <div class="set-icon">
+                  {% if s.icon_svg_uri %}
+                    <img src="{{ s.icon_svg_uri }}" alt="{{ s.code }} icon" />
+                  {% endif %}
+                </div>
+                <div class="set-body">
+                  <div class="set-name">
+                    {{ s.name }} <span style="color: var(--muted);">({{ s.code|upper }})</span>
+                  </div>
+                  <div class="set-meta">
+                    {% if s.released_at %}
+                      <span>{{ s.released_at }}</span>
+                    {% endif %}
+                    {% if s.set_type %}
+                      <span>{{ s.set_type|replace("_"," ") }}</span>
+                    {% endif %}
+                    {% if s.card_count %}
+                      <span>{{ s.card_count }} cards</span>
+                    {% endif %}
+                    {% if s.digital %}
+                      <span>Digital</span>
+                    {% endif %}
+                    {% if s.foil_only %}
+                      <span>Foil only</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div>
+                  <span class="set-type-pill">
+                    {{ s.set_type|replace("_"," ") }}
+                  </span>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        const input = document.getElementById("sets-filter");
+        const grid = document.getElementById("sets-grid");
+        if (!input || !grid) return;
+
+        const cards = Array.from(grid.getElementsByClassName("set-card"));
+
+        input.addEventListener("input", () => {
+          const q = input.value.trim().toLowerCase();
+          if (!q) {
+            cards.forEach((card) => {
+              card.style.display = "";
+            });
+            return;
+          }
+
+          cards.forEach((card) => {
+            const name = card.getAttribute("data-name") || "";
+            const code = card.getAttribute("data-code") || "";
+            const type = card.getAttribute("data-type") || "";
+            const haystack = name + " " + code + " " + type;
+            card.style.display = haystack.indexOf(q) !== -1 ? "" : "none";
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

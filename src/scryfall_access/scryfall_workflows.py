@@ -165,7 +165,7 @@ def _summarize_card(card: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------------------------
-# High-level workflows
+# High-level workflows: single-card and search
 # ------------------------------------------------------------------------------
 
 def lookup_card_details_by_name(
@@ -293,7 +293,9 @@ def search_cards_summaries(
     }
 
 
-# ---------- New helpers for autocomplete / random / rulings / printings ----------
+# ------------------------------------------------------------------------------
+# Additional workflows: autocomplete / random / rulings / printings
+# ------------------------------------------------------------------------------
 
 def autocomplete_card_names(
     client: ScryfallClient,
@@ -334,9 +336,10 @@ def get_rulings_for_card(
     Fetch and normalize rulings for a card (sorted by published_at ascending).
     """
     rulings = client.card_rulings(card_id)
-    # Sort by published_at if present
+
     def sort_key(r: Dict[str, Any]) -> str:
         return r.get("published_at") or ""
+
     rulings_sorted = sorted(rulings, key=sort_key)
     return rulings_sorted
 
@@ -376,3 +379,60 @@ def get_printings_for_card(
             break
 
     return printings
+
+
+# ------------------------------------------------------------------------------
+# Set workflows: list sets, set detail, and set card browsing
+# ------------------------------------------------------------------------------
+
+def list_sets_for_ui(client: ScryfallClient) -> List[Dict[str, Any]]:
+    """
+    Retrieve all sets and sort them by release date (newest first), then by name.
+
+    The Set objects include fields like:
+      - code, name, set_type, released_at, card_count, digital, foil_only, icon_svg_uri, etc.
+    """
+    sets = list(client.all_sets())
+
+    def sort_key(s: Dict[str, Any]) -> tuple[str, str]:
+        released = s.get("released_at") or ""
+        name = s.get("name") or ""
+        return (released, name)
+
+    sets_sorted = sorted(sets, key=sort_key)
+    sets_sorted.reverse()  # newest first
+    return sets_sorted
+
+
+def get_set_detail(client: ScryfallClient, code: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch a single set by its Scryfall set code.
+    """
+    try:
+        return client.set_by_code(code)
+    except ScryfallAPIError:
+        return None
+
+
+def set_cards_summaries(
+    client: ScryfallClient,
+    set_code: str,
+    *,
+    page: int = 1,
+    per_page: int = 20,
+) -> Dict[str, Any]:
+    """
+    Convenience wrapper around search_cards_summaries for browsing a set.
+
+    Uses query e:{set_code} which is Scryfall shorthand for "in this set".
+    """
+    query = f"e:{set_code}"
+    return search_cards_summaries(
+        client,
+        query=query,
+        page=page,
+        per_page=per_page,
+        unique="prints",
+        order="released",
+        direction="asc",
+    )
