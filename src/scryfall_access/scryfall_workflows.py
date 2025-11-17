@@ -164,6 +164,10 @@ def _summarize_card(card: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ------------------------------------------------------------------------------
+# High-level workflows
+# ------------------------------------------------------------------------------
+
 def lookup_card_details_by_name(
     client: ScryfallClient,
     name: str,
@@ -206,3 +210,84 @@ def lookup_card_details_by_name(
     full_card = client.card_by_id(best["id"])
 
     return _summarize_card(full_card)
+
+
+def lookup_card_details_by_id(
+    client: ScryfallClient,
+    card_id: str,
+) -> Optional[Dict[str, Any]]:
+    """
+    Fetch a card by its Scryfall UUID and return the rich summary.
+    """
+    card = client.card_by_id(card_id)
+    if not card:
+        return None
+    return _summarize_card(card)
+
+
+def search_cards_summaries(
+    client: ScryfallClient,
+    *,
+    query: str,
+    page: int = 1,
+    per_page: int = 20,
+    unique: str = "prints",
+    order: str = "released",
+    direction: str = "desc",
+) -> Dict[str, Any]:
+    """
+    Paginated search workflow for UI:
+
+    1) Use client.search_cards(...) to iterate over all matching prints.
+    2) Skip (page-1) * per_page results.
+    3) Collect up to per_page summary dicts.
+    4) Peek one extra item (if present) to determine has_next.
+
+    We intentionally do not compute a total count (would require consuming
+    the whole generator). Instead we expose has_prev/has_next for navigation.
+    """
+    if page < 1:
+        page = 1
+    per_page = max(1, per_page)
+
+    start_index = (page - 1) * per_page
+    results: List[Dict[str, Any]] = []
+
+    gen = client.search_cards(
+        query,
+        unique=unique,
+        order=order,
+        direction=direction,
+    )
+
+    total_seen = 0
+
+    for card in gen:
+        if total_seen >= start_index and len(results) < per_page:
+            results.append(_summarize_card(card))
+
+        total_seen += 1
+
+        if len(results) >= per_page and total_seen >= start_index + per_page:
+            break
+
+    # Determine if there is a next page by peeking one extra item
+    has_next = False
+    if len(results) == per_page:
+        try:
+            _ = next(gen)
+        except StopIteration:
+            has_next = False
+        else:
+            has_next = True
+
+    has_prev = page > 1
+
+    return {
+        "query": query,
+        "results": results,
+        "page": page,
+        "per_page": per_page,
+        "has_next": has_next,
+        "has_prev": has_prev,
+    }

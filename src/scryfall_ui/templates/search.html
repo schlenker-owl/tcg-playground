@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Scryfall Card Browser</title>
+    <title>Scryfall Card Browser – Search</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       :root {
@@ -128,44 +128,91 @@
         font-size: 0.9rem;
       }
 
-      .card-grid {
+      .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 0.75rem;
+      }
+
+      .results-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 500;
+      }
+
+      .results-header span {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .results-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.7fr);
-        gap: 1.75rem;
-        align-items: flex-start;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
       }
 
-      .card-column,
-      .details-column {
+      .result-card {
+        display: flex;
+        gap: 0.75rem;
         background: var(--card-bg);
-        border-radius: 14px;
-        padding: 1rem;
+        border-radius: 12px;
+        padding: 0.75rem;
         border: 1px solid rgba(122, 155, 255, 0.18);
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.08s ease-out, box-shadow 0.08s ease-out,
+          border-color 0.08s ease-out;
       }
 
-      .card-frame {
-        border-radius: 12px;
+      .result-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+        border-color: rgba(92, 196, 255, 0.6);
+      }
+
+      .result-image {
+        flex: 0 0 84px;
+        border-radius: 8px;
         overflow: hidden;
         background: radial-gradient(circle at top, #222844, #050713 60%);
-        padding: 0.75rem;
-        display: flex;
-        justify-content: center;
       }
 
-      .card-frame img {
+      .result-image img {
         display: block;
         width: 100%;
-        max-width: 320px;
         height: auto;
-        border-radius: 10px;
-        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.8);
+      }
+
+      .result-body {
+        flex: 1 1 auto;
+        display: grid;
+        gap: 0.25rem;
+      }
+
+      .result-name {
+        font-size: 0.96rem;
+        font-weight: 600;
+      }
+
+      .result-set {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .result-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 0.75rem;
+        font-size: 0.78rem;
+        color: var(--muted);
       }
 
       .pill {
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
-        padding: 0.25rem 0.6rem;
+        padding: 0.15rem 0.55rem;
         border-radius: 999px;
         font-size: 0.7rem;
         text-transform: uppercase;
@@ -174,109 +221,41 @@
         color: var(--accent);
       }
 
-      .details-header {
+      .pagination {
         display: flex;
-        justify-content: space-between;
-        gap: 0.75rem;
-        align-items: baseline;
-        margin-bottom: 0.5rem;
-      }
-
-      .card-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-      }
-
-      .set-line {
+        justify-content: flex-end;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.75rem;
         font-size: 0.85rem;
         color: var(--muted);
       }
 
-      .type-line {
-        font-size: 0.9rem;
-        color: var(--muted);
-        margin-bottom: 0.35rem;
-      }
-
-      .oracle-text {
-        font-size: 0.9rem;
-        line-height: 1.4;
-        white-space: pre-wrap;
-        margin-bottom: 0.75rem;
-      }
-
-      .metainfo {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem 1.25rem;
-        font-size: 0.8rem;
-        color: var(--muted);
-        margin-bottom: 0.75rem;
-      }
-
-      .metainfo span {
-        white-space: nowrap;
-      }
-
-      .layout-row {
-        display: grid;
-        grid-template-columns: 1.1fr 1.1fr;
-        gap: 1.25rem;
-      }
-
-      .section-title {
-        font-size: 0.75rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin-bottom: 0.45rem;
-      }
-
-      .prices-table {
-        width: 100%;
-        border-spacing: 0;
-        border-collapse: collapse;
-        font-size: 0.86rem;
-      }
-
-      .prices-table th,
-      .prices-table td {
-        padding: 0.25rem 0.4rem;
-      }
-
-      .prices-table th {
-        text-align: left;
-        font-weight: 500;
-        color: var(--muted);
-      }
-
-      .prices-table td.price-value {
-        text-align: right;
-      }
-
-      .prices-table tr:nth-child(odd) td {
-        background: rgba(5, 8, 22, 0.65);
-      }
-
-      .links-list {
-        font-size: 0.82rem;
-      }
-
-      .links-list a {
-        color: var(--accent);
+      .pagination a,
+      .pagination span.btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2.1rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
         text-decoration: none;
+        border: 1px solid rgba(122, 155, 255, 0.28);
+        background: rgba(5, 8, 22, 0.8);
+        color: var(--text);
       }
 
-      .links-list a:hover {
-        text-decoration: underline;
+      .pagination a:hover {
+        border-color: rgba(92, 196, 255, 0.8);
+      }
+
+      .pagination span.disabled {
+        opacity: 0.4;
+        border-style: dashed;
       }
 
       @media (max-width: 880px) {
-        .card-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
-
-        .layout-row {
+        .results-grid {
           grid-template-columns: minmax(0, 1fr);
         }
       }
@@ -311,115 +290,70 @@
           </section>
         {% endif %}
 
-        {% if card %}
-          <section class="card-grid">
-            <div class="card-column">
-              <div class="section-title">Primary Image</div>
-              <div class="card-frame">
-                {% set img = card.image_uris.normal
-                           or card.image_uris.large
-                           or card.image_uris.small %}
-                {% if img %}
-                  <img src="{{ img }}" alt="{{ card.name }}"/>
-                {% else %}
-                  <div style="padding: 2rem; color: var(--muted);">
-                    No image available for this printing.
-                  </div>
-                {% endif %}
-              </div>
+        {% if query and results %}
+          <section>
+            <div class="results-header">
+              <h2>Results for “{{ query }}”</h2>
+              <span>Page {{ page }}</span>
             </div>
 
-            <div class="details-column">
-              <div class="details-header">
-                <div>
-                  <div class="card-name">{{ card.name }}</div>
-                  <div class="set-line">
-                    {{ card.set|upper }} • {{ card.set_name }} • #{{ card.collector_number }}
-                    ({{ card.rarity|capitalize }})
+            <div class="results-grid">
+              {% for card in results %}
+                {# pick a thumbnail image #}
+                {% set img = (card.image_uris.small
+                              if card.image_uris and card.image_uris.small is defined
+                              else (card.image_uris.normal
+                                    if card.image_uris and card.image_uris.normal is defined
+                                    else None)) %}
+                <a
+                  class="result-card"
+                  href="/card/{{ card.id }}?q={{ query }}&page={{ page }}"
+                >
+                  <div class="result-image">
+                    {% if img %}
+                      <img src="{{ img }}" alt="{{ card.name }}" />
+                    {% endif %}
                   </div>
-                </div>
-                <div class="pill">
-                  {{ card.layout|replace("_", " ") }}
-                </div>
-              </div>
-
-              <div class="type-line">
-                {{ card.mana_cost }} &nbsp;—&nbsp; {{ card.type_line }}
-              </div>
-
-              <div class="oracle-text">
-                {{ card.oracle_text }}
-              </div>
-
-              <div class="metainfo">
-                <span><strong>Colors:</strong> {{ card.colors }}</span>
-                <span><strong>Color ID:</strong> {{ card.color_identity }}</span>
-                <span><strong>Games:</strong> {{ card.games }}</span>
-                <span><strong>Power/Tough:</strong> {{ card.power }}/{{ card.toughness }}</span>
-                {% if card.loyalty %}
-                  <span><strong>Loyalty:</strong> {{ card.loyalty }}</span>
-                {% endif %}
-                {% if card.defense %}
-                  <span><strong>Defense:</strong> {{ card.defense }}</span>
-                {% endif %}
-                {% if card.edhrec_rank %}
-                  <span><strong>EDHREC Rank:</strong> {{ card.edhrec_rank }}</span>
-                {% endif %}
-              </div>
-
-              <div class="layout-row">
-                <div>
-                  <div class="section-title">Prices (Scryfall)</div>
-                  {% set prices = card.prices or {} %}
-                  {% if prices %}
-                    <table class="prices-table">
-                      <tbody>
-                        {% for k, v in prices.items() %}
-                          <tr>
-                            <td>{{ k }}</td>
-                            <td class="price-value">
-                              {% if v %}{{ v }}{% else %}—{% endif %}
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  {% else %}
-                    <div class="muted">No price data for this printing.</div>
-                  {% endif %}
-                </div>
-
-                <div>
-                  <div class="section-title">Links</div>
-                  <div class="links-list">
-                    <div>
-                      <a href="{{ card.scryfall_uri }}" target="_blank" rel="noopener">
-                        View on Scryfall
-                      </a>
+                  <div class="result-body">
+                    <div class="result-name">{{ card.name }}</div>
+                    <div class="result-set">
+                      {{ card.set|upper }} • {{ card.set_name }} • #{{ card.collector_number }}
                     </div>
-                    {% if card.purchase_uris %}
-                      <br/>
-                      {% for label, url in card.purchase_uris.items() %}
-                        <div>
-                          <a href="{{ url }}" target="_blank" rel="noopener">
-                            Buy on {{ label|capitalize }}
-                          </a>
-                        </div>
-                      {% endfor %}
-                    {% endif %}
-                    {% if card.related_uris %}
-                      <br/>
-                      {% for label, url in card.related_uris.items() %}
-                        <div>
-                          <a href="{{ url }}" target="_blank" rel="noopener">
-                            {{ label|replace("_", " ")|capitalize }}
-                          </a>
-                        </div>
-                      {% endfor %}
-                    {% endif %}
+                    <div class="result-meta">
+                      <span>{{ card.type_line }}</span>
+                      <span>Mana cost: {{ card.mana_cost }}</span>
+                      <span>Rarity: {{ card.rarity|capitalize }}</span>
+                    </div>
                   </div>
-                </div>
-              </div>
+                  <div>
+                    <span class="pill">
+                      {{ card.layout|replace("_", " ") }}
+                    </span>
+                  </div>
+                </a>
+              {% endfor %}
+            </div>
+
+            <div class="pagination">
+              {% if has_prev %}
+                <a href="/?q={{ query }}&page={{ page - 1 }}">‹ Prev</a>
+              {% else %}
+                <span class="btn disabled">‹ Prev</span>
+              {% endif %}
+
+              <span>Page {{ page }}</span>
+
+              {% if has_next %}
+                <a href="/?q={{ query }}&page={{ page + 1 }}">Next ›</a>
+              {% else %}
+                <span class="btn disabled">Next ›</span>
+              {% endif %}
+            </div>
+          </section>
+        {% elif query and not error %}
+          <section>
+            <div style="font-size: 0.9rem; color: var(--muted);">
+              No results for “{{ query }}”.
             </div>
           </section>
         {% endif %}

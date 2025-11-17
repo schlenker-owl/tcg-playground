@@ -1,0 +1,22 @@
+# file: docker-compose.yml
+
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: tcg-playground-web
+    ports:
+      - "9000:9000"
+    environment:
+      # Optional: customize app name used in ScryfallClient if you want
+      # SCRYFALL_APP_NAME is not wired yet, but you could hook it into web_app.py later.
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount your local repo into the container for live code edits
+      - .:/app
+    command: >
+      uvicorn src.scryfall_ui.web_app:app
+      --host 0.0.0.0
+      --port 9000
+      --reload
