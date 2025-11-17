@@ -291,3 +291,88 @@ def search_cards_summaries(
         "has_next": has_next,
         "has_prev": has_prev,
     }
+
+
+# ---------- New helpers for autocomplete / random / rulings / printings ----------
+
+def autocomplete_card_names(
+    client: ScryfallClient,
+    query: str,
+    *,
+    include_extras: bool = False,
+    limit: int = 20,
+) -> List[str]:
+    """
+    Wrapper around Scryfall's /cards/autocomplete endpoint.
+
+    Returns a list of possible card name completions for the given query.
+    The underlying API returns up to 20 names; this helper can further trim.
+    """
+    names = client.autocomplete_names(query, include_extras=include_extras)
+    if limit is not None:
+        return names[:limit]
+    return names
+
+
+def random_card_summary(
+    client: ScryfallClient,
+    query: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Fetch a random card (optionally restricted by a Scryfall search query)
+    and return the rich summary.
+    """
+    card = client.random_card(q=query)
+    return _summarize_card(card)
+
+
+def get_rulings_for_card(
+    client: ScryfallClient,
+    card_id: str,
+) -> List[Dict[str, Any]]:
+    """
+    Fetch and normalize rulings for a card (sorted by published_at ascending).
+    """
+    rulings = client.card_rulings(card_id)
+    # Sort by published_at if present
+    def sort_key(r: Dict[str, Any]) -> str:
+        return r.get("published_at") or ""
+    rulings_sorted = sorted(rulings, key=sort_key)
+    return rulings_sorted
+
+
+def get_printings_for_card(
+    client: ScryfallClient,
+    card_summary: Dict[str, Any],
+    *,
+    max_printings: int = 24,
+) -> List[Dict[str, Any]]:
+    """
+    Fetch summaries for other printings of the same card (based on oracle_id).
+
+    Uses a search query oracleid:... with unique=prints so each printing appears
+    once. Filters out the current card's id from the results.
+    """
+    oracle_id = card_summary.get("oracle_id")
+    current_id = card_summary.get("id")
+    if not oracle_id:
+        return []
+
+    query = f"oracleid:{oracle_id}"
+    gen = client.search_cards(
+        query,
+        unique="prints",
+        order="released",
+        direction="asc",
+    )
+
+    printings: List[Dict[str, Any]] = []
+    for card in gen:
+        if card.get("id") == current_id:
+            # Skip the printing we are already viewing
+            continue
+        printings.append(_summarize_card(card))
+        if len(printings) >= max_printings:
+            break
+
+    return printings

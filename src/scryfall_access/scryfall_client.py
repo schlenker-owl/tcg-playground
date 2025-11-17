@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 import requests
 
@@ -295,6 +295,68 @@ class ScryfallClient:
             params["set"] = set_code
 
         return self._get("/cards/named", params=params)
+
+    def autocomplete_names(
+        self,
+        q: str,
+        *,
+        include_extras: bool = False,
+    ) -> List[str]:
+        """
+        Autocomplete card names.
+
+        Endpoint: GET /cards/autocomplete
+
+        Returns up to 20 full English card names that could be autocompletions
+        of the given string. 
+        """
+        params: Dict[str, Any] = {"q": q}
+        if include_extras:
+            params["include_extras"] = "true"
+
+        obj = self._get("/cards/autocomplete", params=params)
+        # Shape: { "object": "...", "total_values": int, "data": [names...] }
+        return list(obj.get("data") or [])
+
+    def random_card(self, q: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Fetch a random card.
+
+        Endpoint: GET /cards/random
+
+        If q is provided, Scryfall returns a random card that matches the query
+        (using the same search syntax as /cards/search). 
+        """
+        params: Optional[Dict[str, Any]] = None
+        if q:
+            params = {"q": q}
+        return self._get("/cards/random", params=params)
+
+    def card_rulings(self, card_id: str) -> List[Dict[str, Any]]:
+        """
+        Fetch rulings for a card by Scryfall UUID.
+
+        Endpoint: GET /cards/{id}/rulings
+
+        Returns a List object:
+        {
+          "object": "list",
+          "data": [
+            {
+              "source": "wotc" | "scryfall",
+              "published_at": "YYYY-MM-DD",
+              "comment": "..."
+            },
+            ...
+          ]
+        }
+        """
+        obj = self._get(f"/cards/{card_id}/rulings")
+        if obj.get("object") != "list":
+            raise RuntimeError(
+                f"Expected a rulings List from Scryfall, got: {obj.get('object')!r}"
+            )
+        return list(obj.get("data") or [])
 
     # --- Sets ---
 

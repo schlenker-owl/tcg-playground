@@ -76,6 +76,7 @@
         border-radius: 999px;
         padding: 0.35rem 0.35rem 0.35rem 0.8rem;
         border: 1px solid rgba(92, 196, 255, 0.25);
+        position: relative;
       }
 
       input[type="text"] {
@@ -117,6 +118,30 @@
       button[type="submit"]:active {
         transform: translateY(0px) scale(0.99);
         box-shadow: 0 10px 28px rgba(67, 118, 255, 0.5);
+      }
+
+      .random-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border: 1px solid rgba(92, 196, 255, 0.4);
+        background: rgba(5, 8, 22, 0.9);
+        color: var(--accent);
+        text-decoration: none;
+        transition: transform 0.07s ease-out, box-shadow 0.07s ease-out,
+          border-color 0.07s ease-out;
+      }
+
+      .random-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 30px rgba(92, 196, 255, 0.6);
+        border-color: rgba(92, 196, 255, 0.8);
       }
 
       .error {
@@ -254,6 +279,37 @@
         border-style: dashed;
       }
 
+      /* Autocomplete dropdown */
+      .autocomplete-box {
+        position: absolute;
+        left: 0.8rem;
+        right: 0.8rem;
+        top: calc(100% + 0.25rem);
+        background: rgba(5, 8, 22, 0.98);
+        border-radius: 12px;
+        border: 1px solid rgba(92, 196, 255, 0.3);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.8);
+        max-height: 260px;
+        overflow-y: auto;
+        z-index: 50;
+      }
+
+      .autocomplete-item {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+
+      .autocomplete-item:hover {
+        background: rgba(92, 196, 255, 0.12);
+      }
+
+      .autocomplete-empty {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
       @media (max-width: 880px) {
         .results-grid {
           grid-template-columns: minmax(0, 1fr);
@@ -270,8 +326,9 @@
 
       <main>
         <section>
-          <form method="get" action="/">
+          <form id="search-form" method="get" action="/">
             <input
+              id="search-input"
               type="text"
               name="q"
               placeholder="Search for a card, e.g. “Black Lotus” or “Lightning Bolt”"
@@ -279,6 +336,15 @@
               autocomplete="off"
             />
             <button type="submit">Search</button>
+            <a
+              class="random-btn"
+              href="/random{% if query %}?q={{ query|urlencode }}{% endif %}"
+            >
+              Random
+            </a>
+
+            <!-- Autocomplete suggestions (populated by JS) -->
+            <div id="autocomplete-box" class="autocomplete-box" style="display:none;"></div>
           </form>
         </section>
 
@@ -299,7 +365,6 @@
 
             <div class="results-grid">
               {% for card in results %}
-                {# pick a thumbnail image #}
                 {% set img = (card.image_uris.small
                               if card.image_uris and card.image_uris.small is defined
                               else (card.image_uris.normal
@@ -359,5 +424,84 @@
         {% endif %}
       </main>
     </div>
+
+    <script>
+      (function () {
+        const input = document.getElementById("search-input");
+        const box = document.getElementById("autocomplete-box");
+        const form = document.getElementById("search-form");
+
+        if (!input || !box || !form) return;
+
+        let lastQuery = "";
+
+        function clearSuggestions() {
+          box.style.display = "none";
+          box.innerHTML = "";
+        }
+
+        function showSuggestions(names) {
+          if (!names || names.length === 0) {
+            box.innerHTML =
+              '<div class="autocomplete-empty">No suggestions</div>';
+            box.style.display = "block";
+            return;
+          }
+          box.innerHTML = names
+            .map(
+              (name) =>
+                '<div class="autocomplete-item" data-name="' +
+                name.replace(/"/g, "&quot;") +
+                '">' +
+                name +
+                "</div>"
+            )
+            .join("");
+          box.style.display = "block";
+
+          Array.from(
+            box.getElementsByClassName("autocomplete-item")
+          ).forEach((el) => {
+            el.addEventListener("click", () => {
+              const name = el.getAttribute("data-name") || "";
+              input.value = name;
+              clearSuggestions();
+              form.submit();
+            });
+          });
+        }
+
+        input.addEventListener("input", async () => {
+          const q = input.value.trim();
+          if (q.length < 2) {
+            clearSuggestions();
+            return;
+          }
+          lastQuery = q;
+          try {
+            const resp = await fetch(
+              "/api/autocomplete?q=" + encodeURIComponent(q)
+            );
+            if (!resp.ok) {
+              clearSuggestions();
+              return;
+            }
+            const payload = await resp.json();
+            if (lastQuery !== q) {
+              // Out-of-date response
+              return;
+            }
+            showSuggestions(payload.data || []);
+          } catch (err) {
+            clearSuggestions();
+          }
+        });
+
+        // Hide autocomplete on blur (with a small delay so clicks still register)
+        input.addEventListener("blur", () => {
+          setTimeout(clearSuggestions, 150);
+        });
+      })();
+    </script>
   </body>
 </html>

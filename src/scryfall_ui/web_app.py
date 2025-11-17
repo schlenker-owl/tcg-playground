@@ -6,12 +6,16 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from src.scryfall_access.scryfall_client import ScryfallClient, ScryfallAPIError
 from src.scryfall_access.scryfall_workflows import (
+    autocomplete_card_names,
+    get_printings_for_card,
+    get_rulings_for_card,
     lookup_card_details_by_id,
+    random_card_summary,
     search_cards_summaries,
 )
 
@@ -97,11 +101,24 @@ async def card_detail_page(
     """
     error: Optional[str] = None
     card = None
+    rulings = []
+    printings = []
 
     try:
         card = lookup_card_details_by_id(client, card_id)
         if card is None:
             error = f"No card found with id: {card_id!r}"
+        else:
+            # Fetch rulings & other printings for this card
+            try:
+                rulings = get_rulings_for_card(client, card["id"])
+            except ScryfallAPIError:
+                rulings = []
+
+            try:
+                printings = get_printings_for_card(client, card, max_printings=24)
+            except ScryfallAPIError:
+                printings = []
     except ScryfallAPIError as e:
         error = f"Scryfall API error: {e}"
     except Exception as e:
@@ -112,8 +129,70 @@ async def card_detail_page(
         {
             "request": request,
             "card": card,
+            "rulings": rulings,
+            "printings": printings,
             "error": error,
             "query": q or "",
             "page": page,
         },
+    )
+
+
+@app.get("/api/autocomplete")
+async def autocomplete_endpoint(q: str) -> JSONResponse:
+    """
+    JSON autocomplete endpoint:
+
+    - GET /api/autocomplete?q=...
+
+    Returns: {"data": [...]} to be used by the search bar JS.
+    """
+    q = q.strip()
+    if len(q) < 2:
+        # Scryfall itself also uses a 2-char minimum for autocomplete. 
+        return JSONResponse({"data": []})
+
+    try:
+        names = autocomplete_card_names(client, q, include_extras=False, limit=20)
+        return JSONResponse({"data": names})
+    except ScryfallAPIError as e:
+        return JSONResponse({"data": [], "error": str(e)}, status_code=502)
+    except Exception as e:
+        return JSONResponse({"data": [], "error": str(e)}, status_code=500)
+
+
+@app.get("/random")
+async def random_card_route(
+    request: Request,
+    q: Optional[str] = None,
+) -> RedirectResponse:
+    """
+    Random card endpoint:
+
+    - GET /random           -> random card from entire database
+    - GET /random?q=...     -> random card matching Scryfall search query
+
+    Redirects to /card/{id}, preserving q for "Back to results" behavior.
+    """
+    try:
+        summary = random_card_summary(client, query=q)
+        card_id = summary["id"]
+    except ScryfallAPIError as e:
+        # Fallback: redirect back to search with an error-ish query
+        # (simplest non-JSON way to surface issues for now)
+        return RedirectResponse(
+            url=f"/?q={ (q or '') }",
+            status_code=303,
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"/?q={ (q or '') }",
+            status_code=303,
+        )
+
+    # Preserve q so that "Back to results" can still work somewhat sensibly
+    q_param = q or ""
+    return RedirectResponse(
+        url=f"/card/{card_id}?q={q_param}&page=1",
+        status_code=303,
     )
